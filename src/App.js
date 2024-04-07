@@ -5,28 +5,49 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import get from 'lodash/get';
+import isEmpty from 'lodash/isEmpty';
+import * as XLSX from 'xlsx';
+import Box from '@mui/material/Box';
+import JsonViewer from 'components/JsonViewer';
 
 function App() {
-  const [file, setFile] = useState({})
+  const [file, setFile] = useState({});
+  const [json, setJson] = useState({});
+  const [csvFile, setCsvFile] = useState({});
 
   const fileTypes = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
+
   const fileOnChange = (e) => {
-    console.log(e.target.value);
-    console.log(e.target.files)
-    const file = e.target.files[0];
-    setFile(e.target.files[0])
-    console.log(file)
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (!event?.target?.result) {
-        return;
-      }
-       const {result} = event.target;
-       
-    };
-    const test = reader.readAsText(file);
-    console.log('test', test);
+    const targetFile = e.target.files[0];
+    const promise = new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsArrayBuffer(targetFile);
+      reader.onload = (event) => {
+        if (!event?.target?.result) {
+          return;
+        }
+        const bufferArray = event.target.result;
+        
+        const wb = XLSX.read(bufferArray, { type: 'buffer'});
+        const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
+        const data = XLSX.utils.sheet_to_json(ws);
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        resolve({data, file: targetFile, csv})
+      };
+      
+      reader.onerror = (error) => {
+        reject(error);
+      };
+    });
+
+    promise.then((res) => {
+      const {data, file, csv} = res;
+      setFile(file);
+      setJson(data);
+      setCsvFile(csv);
+    })
   };
 
   return (
@@ -37,15 +58,37 @@ function App() {
           component="label"
           variant="outlined"
           startIcon={<UploadFileIcon />}
-          sx={{ marginRight: "1rem" }}
+          sx={{ marginRight: "1rem", my: 2}}
         >
-          Upload CSV
+          Upload Excel Worksheet
           <input type="file" accept={fileTypes} hidden onChange={fileOnChange} />
         </Button>
-        {/* <Button onClick={fileOnChange} >
-          <input type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden/>
-        </Button>
-        <TextField type="file" id="fileinput" onChange={fileOnChange} inputProps={{accept:fileTypes}}/> */}
+        <div style={{ display: 'flex', width: '200'}}>
+          {/* { !isEmpty(json) && 
+            <Box
+              sx={{
+                whiteSpace: 'normal',
+                my: 2,
+                p: 1,
+                bgcolor: (theme) =>
+                  theme.palette.mode === 'dark' ? '#101010' : 'grey.100',
+                color: (theme) =>
+                  theme.palette.mode === 'dark' ? 'grey.300' : 'grey.800',
+                border: '1px solid',
+                borderColor: (theme) =>
+                  theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
+                borderRadius: 2,
+                fontSize: '0.875rem',
+                fontWeight: '700',
+              }}
+            >
+              <pre>
+                {json}
+              </pre>
+            </Box>
+          } */}
+        </div>
+        <JsonViewer json={JSON.stringify(json, null, 2)} csv={csvFile}/>
       </header>
     </div>
   );
